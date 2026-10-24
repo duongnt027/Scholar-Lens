@@ -1,0 +1,41 @@
+{
+  "n_papers": 492,
+  "retrieval": {
+    "BM25": {
+      "R@1": 0.9573,
+      "R@5": 0.9919,
+      "R@10": 0.9959,
+      "MRR@10": 0.9727,
+      "ms_per_query": 1.43
+    }
+  },
+  "dedup": {
+    "n": 200,
+    "detect_by_id": 1.0,
+    "detect_mutated_title": 0.95,
+    "false_positive_real_titles": 0.0,
+    "n_real": 492,
+    "real_fp_examples": [],
+    "false_positive_adversarial": 0.19
+  },
+  "graph": {
+    "papers_with_related": 1.0,
+    "same_category@5": 0.3732,
+    "random_baseline": 0.1382,
+    "nodes": 5598,
+    "edges": 8258,
+    "node_types": {
+      "paper": 492,
+      "author": 2232,
+      "category": 69,
+      "concept": 2805
+    },
+    "edge_types": {
+      "WRITTEN_BY": 2354,
+      "IN_CATEGORY": 881,
+      "MENTIONS": 2952,
+      "SIMILAR_TO": 2052,
+      "CITES": 19
+    }
+  }
+}

@@ -1,0 +1,95 @@
+\chapter{TÍCH HỢP CHATBOT KẾT HỢP TÌM KIẾM VÀ HỎI ĐÁP}\label{chap:chatbot}
+
+Chatbot có hai chế độ do hệ thống tự chọn. \textbf{Chat} trò chuyện tự do, không truy xuất. \textbf{Research} chạy
+Graph RAG và bắt buộc trích dẫn [n]. Khi người dùng vừa thêm PDF, bài đó trở thành \emph{bài đang hỏi} (focus):
+các câu hỏi tiếp theo được trả lời từ chính bài đó, kèm các bài láng giềng trên đồ thị.
+
+\section{Luồng một lượt trả lời}
+
+\begin{enumerate}[label=(\arabic*)]
+\item \textbf{Định tuyến:} đang có bài focus thì chọn Research; câu chào hỏi ngắn (biểu thức chính quy, tối đa
+  8 từ) thì chọn Chat; còn lại chọn Research.
+\item \textbf{Viết lại câu hỏi:} LLM biến câu hỏi cuối thành một truy vấn tiếng Anh độc lập, thay các đại từ
+  (``bài này'', ``phương pháp đó'') bằng đối tượng cụ thể trong lịch sử hội thoại.
+\item \textbf{Truy xuất Graph RAG} (Mục~\ref{sec:graphrag}): trả về danh sách nguồn đánh số, mỗi nguồn là một bài
+  báo kèm các đoạn trích, vai trò (focus, tìm thấy, liên quan) và lý do liên quan.
+\item \textbf{Sinh câu trả lời streaming} với prompt hệ thống yêu cầu: chỉ dùng ngữ cảnh, ghi [n] sau mỗi khẳng
+  định, nói rõ khi không đủ thông tin, trả lời bằng ngôn ngữ của người hỏi.
+\item \textbf{Lưu hội thoại} kèm nguồn và đồ thị con để mở lại được từ thanh bên.
+\end{enumerate}
+
+Mỗi lượt được phát thành chuỗi sự kiện SSE \code{meta} $\to$ \code{status} $\to$ \code{query} $\to$ \code{sources}
+$\to$ \code{token}\ldots{} $\to$ \code{done}. Nhờ đó giao diện hiển thị tiến trình và nguồn trước khi câu trả lời
+xuất hiện, rồi hiện câu trả lời dần từng chữ.
+
+\section{Graph RAG}\label{sec:graphrag}
+
+Graph RAG mở rộng RAG~\cite{rag} thông thường bằng một bước đi trên đồ thị tri thức, theo tinh thần của
+GraphRAG~\cite{graphrag} và LightRAG~\cite{lightrag} nhưng ở mức đơn giản hơn.
+
+\begin{itemize}
+\item \textbf{Không có focus:} tìm kiếm lai lấy 5 bài ``hạt giống'' (mỗi bài 2 đoạn). Ba bài đầu được mở rộng sang
+  2 láng giềng trên đồ thị, hoặc 4 nếu câu hỏi có ý ``liên quan / tương tự / so sánh / trích dẫn''.
+\item \textbf{Có focus:} tóm tắt của bài cùng 8 đoạn khớp nhất trong chính bài (lọc theo \code{paper\_id} trên cả
+  ChromaDB và BM25), cộng 4--8 bài liên quan của nó trên đồ thị.
+\item \textbf{Quan hệ trên đồ thị} được viết thành câu (``A trích dẫn B'', ``A bàn về: \ldots'') và đưa vào ngữ
+  cảnh. Nhờ vậy LLM trả lời được câu hỏi về quan hệ mà từng đoạn văn riêng lẻ không chứa.
+\end{itemize}
+
+Điểm liên quan của bài $q$ với bài $p$ được cộng dồn theo các đường đi 1--2 bước trên đồ thị:
+\begin{equation}
+\mathrm{score}(p,q) = \mathbb{1}[\mathrm{CITES}] + \cos_{\mathrm{SIMILAR}}(p,q)
+  + \sum_{e \in N(p) \cap N(q)} \frac{w_{\mathrm{type}(e)}}{\log_2\bigl(2 + \deg(e)\bigr)},
+\label{eq:lienquan}
+\end{equation}
+với $w = 0{,}6$ cho tác giả chung, $0{,}45$ cho khái niệm chung và $0{,}05$ cho chuyên mục chung. Thực thể càng phổ
+biến (bậc $\deg(e)$ cao) thì càng ít giá trị phân biệt nên bị chia nhỏ điểm. Bài chỉ có chung chuyên mục thì không
+được tính là liên quan. Mỗi kết quả kèm danh sách lý do để hiển thị, ví dụ ``trích dẫn bài này; cùng khái niệm
+dense retrieval''.
+
+\section{Mô hình ngôn ngữ}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.2\linewidth}P{0.3\linewidth}L@{}}
+\toprule
+\textbf{Backend} & \textbf{Cấu hình} & \textbf{Ghi chú}\\
+\midrule
+vLLM tự host & Giao diện (dòng ``LLM'' ở thanh bên) hoặc \code{SL\_LLM\_PROVIDER=openai}, \code{SL\_LLM\_BASE\_URL} & Module \mo{llm\_server} host model Hugging Face, mặc định Qwen2.5-7B-Instruct-AWQ~\cite{qwen25,awq} trên 2 GPU T4\\
+Claude & \code{SL\_LLM\_PROVIDER=anthropic} & Mặc định \code{claude-opus-5-5}; tự chuyển sang model dự phòng khi bị từ chối\\
+API tương thích OpenAI khác & Gemini, Groq, Ollama & Dùng chung một client\\
+Không LLM & \code{SL\_LLM\_PROVIDER=none} & Chế độ trích đoạn: chọn câu khớp nhất trong từng nguồn và liệt kê bài liên quan\\
+\bottomrule
+\end{tabularx}
+\caption{Các backend LLM được hỗ trợ}\label{tab:llm}
+\end{table}
+
+vLLM~\cite{vllm} quản lý bộ nhớ đệm attention theo từng trang nhỏ (PagedAttention), ghép nhiều yêu cầu vào cùng
+một lượt tính và chia mỗi lớp của mô hình cho 2 GPU cùng tính (tensor parallelism). Lượng tử hóa AWQ~\cite{awq}
+nén trọng số xuống 4 bit, đưa mô hình 7B từ khoảng 15 GB xuống khoảng 5 GB để vừa với 2 GPU T4. Trên T4 (không hỗ
+trợ bf16), module tự chọn \code{float16} và chế độ \code{enforce-eager} để tiết kiệm VRAM.
+
+\section{Vận hành LLM từ xa}
+
+LLM chạy trên máy GPU và được gọi qua một tunnel công khai, nên hệ thống phải chịu được việc tunnel đổi địa chỉ
+hoặc mất kết nối: URL trycloudflare đổi mỗi lần khởi động lại tunnel, và phiên Kaggle có thể bị ngắt.
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.24\linewidth}L@{}}
+\toprule
+\textbf{Cơ chế} & \textbf{Cách làm}\\
+\midrule
+Đổi LLM khi đang chạy & Dòng ``LLM'' ở cuối thanh bên; bấm vào để nhập Base URL và API key. Ứng dụng kiểm tra kết nối qua \code{/v1/models}, tự thêm \code{/v1}, tự lấy tên model và áp dụng ngay, không cần khởi động lại. Cấu hình lưu ở \code{data/llm\_config.json}\\
+Hiển thị trạng thái & Chấm xanh/đỏ và tên model trên dòng ``LLM'', làm mới mỗi 60 giây\\
+Bảo vệ endpoint & vLLM bật \code{--api-key}; yêu cầu không có đúng khóa bị từ chối (HTTP 401). Khóa cố định đặt trong Kaggle Secrets\\
+Tự quay về khi mất kết nối & Khi LLM không phản hồi, chatbot báo rõ lý do rồi trả lời bằng chế độ trích đoạn, nên không bao giờ trả về câu trả lời trống\\
+Giữ phiên, tự mở lại tunnel & Trên máy GPU, \code{keep\_alive} kiểm tra vLLM và URL công khai mỗi 2 phút; sau 2 lần lỗi liên tiếp thì mở tunnel mới và chỉ in URL mới sau khi đã gọi thử thành công\\
+\bottomrule
+\end{tabularx}
+\caption{Cơ chế vận hành LLM từ xa}\label{tab:vanhanh}
+\end{table}
+
+Khi kiểm thử với tunnel trycloudflare thật, URL mới cần khoảng 69 giây mới gọi được vì DNS chưa kịp cập nhật.
+Kiểm thử này cũng phát hiện Cloudflare chặn User-Agent mặc định của thư viện \code{urllib}; nếu không gửi
+User-Agent riêng, \code{keep\_alive} sẽ tưởng tunnel đã chết và đổi URL liên tục.

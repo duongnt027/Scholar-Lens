@@ -1,0 +1,33 @@
+% Sơ đồ kiến trúc tổng thể: máy GPU (Kaggle) và máy demo (Docker).
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={draw, rounded corners=2pt, align=center, text width=50mm, minimum height=11mm, fill=white,
+    execute at begin node=\setstretch{1.05}},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+  % Máy GPU
+  \node[box] (tun) at (0,0) {\textbf{cloudflared tunnel}\\https://\ldots.trycloudflare.com};
+  \node[box, below=7mm of tun] (vllm) {\textbf{vLLM}: Qwen2.5-7B-Instruct-AWQ\\API tương thích OpenAI, 2 GPU};
+  \node[box, below=7mm of vllm] (pipe) {\textbf{Pipeline dữ liệu (theo lô)}\\crawl $\to$ ingest $\to$ embedding $\to$ graph};
+  % Máy demo
+  \node[box] (web) at (8.0,0) {\textbf{Web app}\\FastAPI + giao diện chat};
+  \node[box, below=7mm of web] (ret) {\textbf{Tìm kiếm lai + Graph RAG}\\BM25 + vector e5, gộp RRF};
+  \node[box, below=7mm of ret] (store) {\textbf{Kho dữ liệu} \code{data/}\\SQLite, ChromaDB, BM25, đồ thị};
+  \node[box, below=7mm of store] (emb) {\textbf{Embedder e5 (CPU)}\\embedding PDF mới tải lên};
+  \node[box, above=9mm of web, text width=40mm, minimum height=8mm] (user) {Người dùng (trình duyệt)};
+  % Khung hai máy
+  \begin{scope}[on background layer]
+    \node[draw, rounded corners=4pt, fill=black!4, inner sep=3.5mm, fit=(tun)(vllm)(pipe),
+      label={[font=\small\bfseries]below:Máy GPU (Kaggle, 2$\times$T4)}] (gpu) {};
+    \node[draw, rounded corners=4pt, fill=blue!4, inner sep=3.5mm, fit=(web)(ret)(store)(emb),
+      label={[font=\small\bfseries]below:Máy demo (Docker hoặc Python)}] (demo) {};
+  \end{scope}
+  % Luồng
+  \draw[arr] (user) -- (web);
+  \draw[arr] (web) -- (ret);
+  \draw[arr] (ret) -- (store);
+  \draw[arr] (emb) -- (store);
+  \draw[arr] (tun) -- (vllm);
+  \draw[arr] (web.west) -- node[lbl, above]{HTTPS + API key} (tun.east);
+  \draw[arr] (pipe.east) -- node[lbl, above]{chép \code{data/}} (store.west);
+\end{tikzpicture}

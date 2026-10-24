@@ -1,0 +1,18 @@
+# bí mật
+.env
+
+# dữ liệu sinh ra khi chạy (crawl, SQLite, ChromaDB, đồ thị, hội thoại, cấu hình LLM)
+data/
+data_backup_local/
+dist/
+*.zip
+
+# PDF arXiv (tải lại bằng scripts/download_demo_pdfs.py)
+demo_pdfs/*.pdf
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.sqlite-wal
+*.sqlite-shm

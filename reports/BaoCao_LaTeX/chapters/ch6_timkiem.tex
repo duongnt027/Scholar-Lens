@@ -1,0 +1,75 @@
+\chapter{PHÁT TRIỂN HỆ THỐNG TÌM KIẾM}\label{chap:timkiem}
+
+Tìm kiếm kết hợp hai tín hiệu bổ sung cho nhau. BM25 bắt đúng thuật ngữ hiếm (tên mô hình, tên bộ dữ liệu), còn
+embedding đa ngôn ngữ bắt được cách diễn đạt khác và câu hỏi tiếng Việt. Hai danh sách kết quả được gộp bằng
+Reciprocal Rank Fusion (RRF)~\cite{rrf}, rồi quy về cấp bài báo.
+
+\section{Chia đoạn}
+
+\begin{itemize}
+\item \textbf{Đoạn tóm tắt} (chỉ số 0): tiêu đề + tóm tắt. Bài chỉ có metadata (không có PDF) vẫn tìm được nhờ
+  đoạn này.
+\item \textbf{Đoạn nội dung:} cửa sổ trượt 220 từ, chồng lấn 40 từ, không vượt qua ranh giới mục; mỗi đoạn mang
+  số trang và tên mục để trích dẫn chính xác.
+\item Phần References bị cắt khỏi nội dung cần chia đoạn, nhưng các mã arXiv trong đó được giữ lại làm cạnh CITES.
+\end{itemize}
+
+\section{Embedding}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.22\linewidth}L@{}}
+\toprule
+\textbf{Thuộc tính} & \textbf{Giá trị}\\
+\midrule
+Model mặc định & \code{intfloat/multilingual-e5-base}~\cite{me5}: khoảng 278 triệu tham số, vector 768 chiều, hỗ trợ tiếng Việt\\
+Tiền tố & \code{query:} cho câu hỏi, \code{passage:} cho văn bản; họ BGE dùng câu chỉ dẫn riêng, tự nhận theo tên model\\
+Chuẩn hóa & Chuẩn L2, nên tích vô hướng giữa hai vector chính là cosine\\
+Thiết bị & Tự chọn CUDA $\to$ MPS $\to$ CPU; trên GPU dùng số thực 16 bit và lô lớn gấp 4 lần\\
+Chạy độc lập & \code{python -m scholarlens.embedding --device cuda}, chỉ xử lý các đoạn có \code{embedded = 0}\\
+\bottomrule
+\end{tabularx}
+\caption{Cấu hình embedding}\label{tab:embedding}
+\end{table}
+
+\section{Tìm kiếm lai và gộp hạng}
+
+\paragraph{BM25.} Mỗi đoạn văn $d$ được chấm điểm theo các từ $t$ của câu hỏi $q$:
+\begin{equation}
+\BM(q,d) = \sum_{t \in q} \mathrm{IDF}(t)\,\frac{f(t,d)\,(k_1+1)}{f(t,d) + k_1\bigl(1 - b + b\,\frac{|d|}{\mathrm{avgdl}}\bigr)},
+\label{eq:bm25}
+\end{equation}
+trong đó $f(t,d)$ là số lần từ $t$ xuất hiện trong đoạn (điểm tăng chậm dần khi từ lặp lại nhiều),
+$\mathrm{IDF}(t)$ cho từ hiếm điểm cao hơn từ phổ biến, $|d|/\mathrm{avgdl}$ phạt nhẹ đoạn dài hơn trung bình;
+$k_1 = 1{,}5$, $b = 0{,}75$ (mặc định của rank-bm25). Văn bản được tách từ đơn giản: chữ thường, bỏ từ dừng.
+
+\paragraph{Tìm kiếm dense.} Câu hỏi được embedding (tiền tố \code{query:}), ChromaDB trả về 50 đoạn có cosine cao
+nhất, có thể kèm điều kiện lọc theo bài hoặc theo năm.
+
+\paragraph{Gộp bằng RRF.} Hai danh sách top-50 được gộp chỉ dựa trên thứ hạng:
+\begin{equation}
+\RRF(d) = \sum_{r \in \{\mathrm{dense},\,\BM\}} \frac{1}{k + \rank_r(d)}, \qquad k = 60.
+\label{eq:rrf}
+\end{equation}
+Đoạn đứng cao ở cả hai danh sách được cộng điểm từ cả hai. RRF chỉ dùng thứ hạng nên không cần chuẩn hóa thang
+điểm giữa BM25 (không có giới hạn trên) và cosine (từ $-1$ đến $1$).
+
+\paragraph{Quy về cấp bài báo.} Các đoạn được nhóm theo bài; điểm của bài bằng điểm đoạn cao nhất cộng
+$0{,}3 \times$ tổng điểm các đoạn còn lại của bài đó. Bài có nhiều đoạn khớp được thưởng nhẹ, nhưng một đoạn rất
+khớp vẫn quyết định thứ hạng.
+
+\section{Truy cập tìm kiếm}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.38\linewidth}L@{}}
+\toprule
+\textbf{Điểm truy cập} & \textbf{Mô tả}\\
+\midrule
+Khung chat (chế độ Research) & Mọi câu hỏi chuyên môn đều chạy tìm kiếm lai; các bài tìm được hiện thành danh sách nguồn dưới câu trả lời\\
+\code{GET /api/search?q=...\&mode=hybrid} & API trả về danh sách bài, điểm, đoạn trích và thời gian xử lý; \code{mode} nhận \code{hybrid}, \code{dense} hoặc \code{bm25} để so sánh ba phương pháp\\
+\code{GET /api/papers?q=...} & Lọc nhanh kho theo tiêu đề, tác giả hoặc mã bài\\
+\bottomrule
+\end{tabularx}
+\caption{Các điểm truy cập tìm kiếm}\label{tab:truycap}
+\end{table}

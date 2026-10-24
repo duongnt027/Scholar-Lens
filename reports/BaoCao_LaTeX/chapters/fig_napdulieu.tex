@@ -1,0 +1,43 @@
+% Luồng nạp một PDF: ba lớp kiểm tra trùng trước khi ghi vào bốn kho dữ liệu.
+% Lưới cột cố định (tâm cách nhau 3.8 cm), hộp rộng 3.0 cm -> không chồng nhau; tổng rộng ~14.4 cm.
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={draw, rounded corners=2pt, align=center, text width=27mm, minimum height=11mm, fill=white,
+    execute at begin node=\setstretch{1.05}},
+  gate/.style={box, fill=orange!12},
+  store/.style={box, minimum height=9mm, fill=blue!6},
+  dup/.style={box, text width=37mm, fill=black!6},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+  % Nhánh "đã có" (phía trên)
+  \node[dup] (dup) at (7.6, 2.1) {\textbf{Đã có trong kho:} báo lý do,\\gắn bài cũ làm bài đang hỏi};
+  % Hàng 1: chuỗi xử lý
+  \node[box]  (pdf)   at (0.0, 0) {PDF tải lên\\(một hoặc nhiều file)};
+  \node[gate] (sha)   at (3.8, 0) {\textbf{Lớp 1}\\trùng SHA-256?};
+  \node[box]  (parse) at (7.6, 0) {Đọc PDF: tiêu đề,\\mã arXiv, refs};
+  \node[gate] (id)    at (11.4, 0) {\textbf{Lớp 2}\\trùng mã / tiêu đề?};
+  % Hàng 2: sau khi qua kiểm tra
+  \node[gate] (api)   at (11.4, -2.1) {\textbf{Lớp 3}\\tra arXiv API, kiểm tra lại};
+  \node[box]  (chunk) at (7.6, -2.1) {Chia đoạn\\220 từ, chồng 40};
+  \node[box]  (emb)   at (3.8, -2.1) {Embedding\\+ trích khái niệm};
+  % Hàng 3: bốn kho
+  \node[store] (s1) at (0.0, -4.1) {SQLite};
+  \node[store] (s2) at (3.8, -4.1) {ChromaDB};
+  \node[store] (s3) at (7.6, -4.1) {BM25};
+  \node[store] (s4) at (11.4, -4.1) {Đồ thị};
+  \begin{scope}[on background layer]
+    \node[draw, dashed, rounded corners=4pt, inner sep=2.5mm, fit=(s1)(s2)(s3)(s4),
+      label={[font=\scriptsize\itshape]below:bốn kho dữ liệu trong thư mục \code{data/}}] (kho) {};
+  \end{scope}
+  % Luồng chính
+  \draw[arr] (pdf) -- (sha);
+  \draw[arr] (sha) -- node[lbl, above]{không} (parse);
+  \draw[arr] (parse) -- (id);
+  \draw[arr] (id) -- node[lbl, right]{không} (api);
+  \draw[arr] (api) -- node[lbl, above]{mới} (chunk);
+  \draw[arr] (chunk) -- (emb);
+  \draw[arr] (emb.south) -- (emb.south |- kho.north);
+  % Nhánh trùng
+  \draw[arr] (sha.north) |- node[lbl, pos=0.25, left]{có} (dup.west);
+  \draw[arr] (id.north) |- node[lbl, pos=0.25, right]{có} (dup.east);
+\end{tikzpicture}

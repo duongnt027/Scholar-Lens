@@ -1,0 +1,65 @@
+\chapter{NGUỒN DỮ LIỆU VÀ PHƯƠNG THỨC THU THẬP}\label{chap:dulieu}
+
+Dữ liệu là bài báo khoa học trên arXiv, thu thập qua ba kênh: arXiv API (theo keyword, chuyên mục, khoảng ngày
+hoặc danh sách mã bài), bộ dữ liệu arXiv trên Kaggle, và PDF do người dùng tải lên. Tải file PDF là một tùy chọn
+của kênh arXiv API, không phải kênh riêng. Bộ dữ liệu thử nghiệm gồm 492 bài, trong đó 12 bài có toàn văn PDF;
+ngoài ra có 4 PDF được giữ riêng để trình diễn thao tác thêm bài.
+
+\section{Các kênh thu thập}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.2\linewidth}LP{0.17\linewidth}P{0.24\linewidth}@{}}
+\toprule
+\textbf{Kênh} & \textbf{Nội dung lấy được} & \textbf{Quy mô phù hợp} & \textbf{Lệnh}\\
+\midrule
+arXiv API~\cite{arxivapi} (Atom feed) & Mã bài, tiêu đề, tóm tắt, tác giả, chuyên mục, ngày, DOI, link PDF; tùy chọn tải PDF (toàn văn, mục, tài liệu tham khảo) & Vài nghìn bài mỗi truy vấn & \code{crawler keyword}, \code{crawler category}, \code{crawler ids}, cờ \code{--pdf}\\
+Kaggle dataset Cornell-University/arxiv~\cite{arxivdataset} & Metadata của khoảng 2,7 triệu bài (JSON lines) & Hàng trăm nghìn bài & \code{crawler snapshot}\\
+Người dùng tải lên & PDF bất kỳ, có hoặc không có mã arXiv; hệ thống tự tra metadata chuẩn trên arXiv API & Từng file hoặc theo lô & Giao diện web, \code{ingest pdf}, \code{ingest dir}\\
+\bottomrule
+\end{tabularx}
+\caption{Các kênh thu thập dữ liệu}\label{tab:kenh}
+\end{table}
+
+\section{Phương thức thu thập}
+
+\begin{enumerate}[label=(\arabic*)]
+\item \textbf{Dựng truy vấn:} keyword được chuyển sang cú pháp arXiv. Cụm trong ngoặc kép thành
+  \code{all:"..."}, từ rời được nối bằng AND; có thể ghép thêm chuyên mục \code{cat:cs.IR} và khoảng ngày
+  \code{submittedDate:[từ TO đến]}.
+\item \textbf{Thu thập không theo keyword:} lấy theo chuyên mục và khoảng ngày, ví dụ
+  \code{crawler category cs.IR --from 2025-01-01}.
+\item \textbf{Phân trang và tuân thủ quy định:} mỗi trang 100 kết quả, sắp xếp mới nhất trước; nghỉ tối thiểu
+  3 giây giữa các lần gọi theo quy định của arXiv; thử lại khi lỗi mạng hoặc HTTP khác 200.
+\item \textbf{Chống trùng khi thu thập:} kết quả được ghi nối vào \code{data/raw/metadata.jsonl}; mã bài đã có bị
+  bỏ qua, nên thu thập lại nhiều lần không sinh bản sao.
+\item \textbf{Tải PDF:} kiểm tra chữ ký \code{\%PDF} và kích thước file trước khi lưu vào \code{data/pdfs/}.
+\end{enumerate}
+
+Sau bước thu thập, bài báo chưa xuất hiện trong ứng dụng; cần chạy tiếp các bước nạp (\code{ingest}), embedding và
+dựng đồ thị (Chương~\ref{chap:tochuc}).
+
+\section{Bộ dữ liệu thử nghiệm}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}Lr@{}}
+\toprule
+\textbf{Truy vấn thu thập} & \textbf{Số bài mới}\\
+\midrule
+12 bài kinh điển theo mã bài, kèm PDF (Transformer, BERT, RAG, DPR, REALM, FiD, Contriever, E5, BGE, Sentence-BERT, Self-RAG, RAPTOR) & 12\\
+Keyword ``retrieval augmented generation'' & 150\\
+Keyword ``dense retrieval'' & 97\\
+Keyword ``graph neural network'', chuyên mục cs.LG & 80\\
+Keyword ``knowledge graph'' question answering & 76\\
+Chuyên mục cs.IR từ 01/2025 & 77\\
+\midrule
+\textbf{Tổng} & \textbf{492}\\
+\bottomrule
+\end{tabularx}
+\caption{Thành phần bộ dữ liệu thử nghiệm}\label{tab:dataset}
+\end{table}
+
+Bốn PDF dành cho demo (không nạp sẵn): GraphRAG~\cite{graphrag} (2404.16130), RAG Survey (2312.10997),
+LightRAG~\cite{lightrag} (2410.05779) và Agentic RAG Survey (2501.09136). Các file này được tải lại bằng
+\code{scripts/download\_demo\_pdfs.py}.

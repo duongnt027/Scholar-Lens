@@ -1,0 +1,58 @@
+\chapter{TRÌNH BÀY GIẢI PHÁP}\label{chap:giaiphap}
+
+Phần trình bày dùng bộ slide \code{ScholarLens\_edited.pptx} (15 trang, có ghi chú người nói), sắp xếp theo đúng
+các đề mục của báo cáo. Phần demo chạy trực tiếp trên web app với 4 PDF trong \code{demo\_pdfs/}; cả bốn bài chưa
+có trong kho trước buổi demo.
+
+\section{Kịch bản demo}
+
+\begin{enumerate}[label=(\arabic*)]
+\item \textbf{Chuẩn bị:} trên Kaggle chạy notebook \code{kaggle\_llm\_server.ipynb}; trên máy demo chạy
+  \code{python -m scholarlens.app}, mở \code{http://127.0.0.1:7860}, dán URL trycloudflare và API key vào dòng
+  ``LLM'' ở cuối thanh bên. Chấm xanh là sẵn sàng.
+\item \textbf{Thêm một bài:} kéo file GraphRAG (\code{2404.16130.pdf}) vào cửa sổ. Tiến trình hiện ngay trong khung
+  chat: SHA-256 $\to$ đọc PDF $\to$ tra arXiv API $\to$ chia đoạn $\to$ embedding $\to$ đồ thị. Kết thúc, dòng
+  ``Đang hỏi về: \ldots'' xuất hiện phía trên ô nhập.
+\item \textbf{Hỏi về bài:} ``Tóm tắt bài này'', ``Phương pháp chính và đóng góp là gì?''. Bấm một trích dẫn [n] để
+  mở danh sách nguồn và tô sáng đúng bài đó.
+\item \textbf{Hỏi bài liên quan:} ``Các bài báo liên quan đến bài này?'' cho danh sách kèm lý do (trích dẫn, cùng
+  khái niệm, tương đồng nội dung). Bấm nút Đồ thị dưới câu trả lời, rồi Mở rộng để xem toàn màn hình và bấm vào một
+  bài để xem chi tiết.
+\item \textbf{Thêm trùng:} kéo lại cùng file; hệ thống báo ``đã có --- trùng nội dung file (SHA-256)'' và không
+  embedding lại.
+\item \textbf{Thêm hàng loạt:} chọn cùng lúc 3 PDF còn lại (RAG Survey, LightRAG, Agentic RAG); mỗi file hiện trạng
+  thái riêng, rồi hỏi ``So sánh các bài vừa thêm''.
+\item \textbf{Lịch sử và trình chiếu:} mở lại một hội thoại cũ trong thanh bên để cho thấy câu trả lời, nguồn và đồ
+  thị được lưu lại; thu gọn thanh bên để khung chat chiếm toàn màn hình khi trình chiếu.
+\end{enumerate}
+
+\section{Kết luận}
+
+ScholarLens đáp ứng đủ các yêu cầu của đề bài:
+\begin{itemize}
+\item Thu thập bài báo từ arXiv theo keyword, theo chuyên mục và theo mã bài, cùng nguồn snapshot Kaggle.
+\item Tổ chức bốn kho dữ liệu (SQLite, ChromaDB, BM25, đồ thị) dựng lại được từ SQLite, với kiểm tra trùng ba lớp.
+\item Tìm kiếm lai BM25 + vector đa ngôn ngữ gộp bằng RRF, hỏi được bằng tiếng Việt trên kho tiếng Anh.
+\item Chatbot Graph RAG hai chế độ, trả lời có trích dẫn và gợi ý bài liên quan có giải thích.
+\item LLM mã nguồn mở tự host bằng vLLM trên GPU miễn phí, chịu được việc mất kết nối.
+\end{itemize}
+Thao tác thêm PDF được tự động hóa trọn vẹn, kể cả kiểm tra trùng, và hệ thống vẫn chạy được khi không có LLM.
+
+\section{Hướng phát triển}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.36\linewidth}L@{}}
+\toprule
+\textbf{Hạn chế hiện tại} & \textbf{Hướng cải tiến}\\
+\midrule
+Đọc PDF bằng quy tắc & Dùng GROBID hoặc Nougat để lấy cấu trúc, bảng, công thức\\
+Cạnh trích dẫn chỉ qua mã arXiv & Khớp tiêu đề tài liệu tham khảo, dùng Semantic Scholar API\\
+Khái niệm dạng n-gram & Trích thực thể và quan hệ bằng LLM, tóm tắt cộng đồng như GraphRAG~\cite{graphrag} đầy đủ\\
+Chưa có bước xếp hạng lại & Thêm cross-encoder (ví dụ bge-reranker) cho top-20 kết quả\\
+Thu thập chạy thủ công & Theo dõi chủ đề định kỳ, chỉ lấy bài mới kể từ lần trước rồi tự nạp\\
+Đánh giá known-item còn dễ & Xây bộ câu hỏi tiếng Việt có gán nhãn, đánh giá câu trả lời bằng LLM\\
+\bottomrule
+\end{tabularx}
+\caption{Hạn chế và hướng phát triển}\label{tab:huongphattrien}
+\end{table}

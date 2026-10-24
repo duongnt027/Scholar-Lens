@@ -1,0 +1,9 @@
+data/
+demo_pdfs/
+notebooks/
+reports/
+scripts/
+.env
+.git/
+**/__pycache__/
+*.pyc

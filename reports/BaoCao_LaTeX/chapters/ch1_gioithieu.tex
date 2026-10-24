@@ -1,0 +1,86 @@
+\chapter{GIỚI THIỆU HỆ THỐNG}\label{chap:gioithieu}
+
+\section{Đặt vấn đề}
+
+ScholarLens là hệ thống truy xuất thông tin và hỏi đáp cho bài báo khoa học trên arXiv. Người dùng tìm bài bằng
+câu hỏi tự nhiên (tiếng Việt hoặc tiếng Anh), thêm PDF bằng kéo-thả, và trò chuyện với chatbot. Chatbot trả lời
+có trích dẫn tới đúng bài và đúng đoạn, kèm các bài liên quan tìm được trên đồ thị tri thức.
+
+Hệ thống được xây dựng cho mini-project học phần Khai phá dữ liệu lớn và học máy, theo chủ đề tìm kiếm văn bản
+khoa học. Dữ liệu thử nghiệm gồm 492 bài về truy xuất thông tin, RAG, đồ thị tri thức và mô hình ngôn ngữ.
+
+\section{Mục tiêu}
+
+Bảng~\ref{tab:muctieu} đối chiếu từng yêu cầu của đề bài với phần hệ thống đáp ứng và chương trình bày chi tiết.
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.28\linewidth}Lc@{}}
+\toprule
+\textbf{Yêu cầu của đề bài} & \textbf{ScholarLens đáp ứng bằng} & \textbf{Chương}\\
+\midrule
+Phát biểu bài toán, yêu cầu hệ thống & 7 tình huống sử dụng, 8 yêu cầu chức năng, 7 nhóm yêu cầu phi chức năng, yêu cầu môi trường sử dụng & 2, 3\\
+Nguồn dữ liệu và cách thu thập & Crawler arXiv API (theo keyword, chuyên mục, mã bài), snapshot Kaggle, PDF người dùng tải lên & 4\\
+Tổ chức hệ quản trị dữ liệu & SQLite + ChromaDB + chỉ mục BM25 + đồ thị tri thức; kiểm tra trùng ba lớp & 5\\
+Hệ thống tìm kiếm đơn giản & Tìm kiếm lai BM25 + vector đa ngôn ngữ, gộp bằng RRF & 6\\
+Tích hợp chatbot & Hai chế độ Chat / Research, Graph RAG, LLM Qwen2.5 tự host bằng vLLM & 7\\
+Báo cáo kỹ thuật & Cấu trúc mã nguồn, triển khai, đánh giá, kiểm thử, hạn chế & 8\\
+Trình bày giải pháp & Bộ slide 15 trang và kịch bản demo & 9\\
+\bottomrule
+\end{tabularx}
+\caption{Đối chiếu yêu cầu của đề bài với hệ thống}\label{tab:muctieu}
+\end{table}
+
+\section{Kiến trúc tổng thể}
+
+Hệ thống chạy trên hai máy (Hình~\ref{fig:kientruc}). Máy GPU (Kaggle, 2 GPU Tesla T4) làm phần tính toán nặng:
+embedding hàng loạt và sinh câu trả lời bằng LLM. Máy demo chạy web app (trong Docker hoặc trực tiếp bằng Python),
+giữ toàn bộ dữ liệu và phục vụ người dùng. Hai máy giao tiếp qua HTTPS bằng tunnel trycloudflare, có xác thực bằng
+API key.
+
+\begin{figure}[H]
+\centering
+\input{chapters/fig_kientruc}
+\caption{Kiến trúc tổng thể của ScholarLens}\label{fig:kientruc}
+\end{figure}
+
+Câu hỏi đi từ trình duyệt vào web app, qua tìm kiếm lai và Graph RAG trên kho dữ liệu cục bộ. Chỉ bước sinh câu
+trả lời đi qua tunnel tới vLLM. Pipeline dữ liệu chạy theo lô trên GPU, kết quả được chép sang máy demo một lần;
+PDF thêm sau đó được embedding ngay trên máy demo.
+
+\section{Công nghệ sử dụng}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.25\linewidth}L@{}}
+\toprule
+\textbf{Tầng} & \textbf{Công nghệ}\\
+\midrule
+Thu thập, xử lý PDF & arXiv API~\cite{arxivapi}, PyMuPDF\\
+Embedding & sentence-transformers~\cite{sbert}, \code{intfloat/multilingual-e5-base}~\cite{me5} (768 chiều, đa ngôn ngữ)\\
+Lưu trữ & SQLite, ChromaDB 1.5.9 (chỉ mục HNSW~\cite{hnsw}), rank-bm25~\cite{bm25}, NetworkX~\cite{networkx}\\
+LLM & vLLM~\cite{vllm} + Qwen2.5-7B-Instruct-AWQ~\cite{qwen25,awq}; có thể thay bằng Claude, Gemini, Ollama\\
+Web app & FastAPI (streaming SSE), HTML/JS thuần, vis-network\\
+Triển khai & Kaggle Notebook (GPU), Docker Compose, cloudflared\\
+\bottomrule
+\end{tabularx}
+\caption{Công nghệ sử dụng theo từng tầng}\label{tab:congnghe}
+\end{table}
+
+\section{Kết quả chính}
+
+\begin{itemize}
+\item Kho 492 bài, 877 đoạn văn; đồ thị tri thức 5.598 nút và 8.258 cạnh.
+\item Tìm bài theo tiêu đề bằng BM25 đạt Recall@1 = 0,957; một truy vấn tìm kiếm mất khoảng 0,3 giây trên CPU.
+\item Kiểm tra trùng phát hiện 95\% tiêu đề bị biến đổi, không báo nhầm bài thật nào.
+\item Trong năm bài liên quan mà đồ thị gợi ý, 37\% cùng chuyên mục với bài gốc, gấp 2,7 lần chọn ngẫu nhiên.
+\end{itemize}
+
+\section{Cấu trúc báo cáo}
+
+Chương~\ref{chap:baitoan} phát biểu bài toán và các tình huống sử dụng. Chương~\ref{chap:yeucau} nêu yêu cầu chức
+năng, phi chức năng và môi trường sử dụng. Chương~\ref{chap:dulieu} trình bày nguồn dữ liệu và cách thu thập.
+Chương~\ref{chap:tochuc} mô tả tổ chức các kho dữ liệu và cơ chế kiểm tra trùng. Chương~\ref{chap:timkiem} trình
+bày hệ thống tìm kiếm lai. Chương~\ref{chap:chatbot} trình bày chatbot và Graph RAG. Chương~\ref{chap:kythuat} là
+báo cáo kỹ thuật: mã nguồn, triển khai, đánh giá, kiểm thử và hạn chế. Chương~\ref{chap:giaiphap} trình bày kịch
+bản demo, kết luận và hướng phát triển.

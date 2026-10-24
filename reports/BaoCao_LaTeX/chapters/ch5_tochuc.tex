@@ -1,0 +1,91 @@
+\chapter{TỔ CHỨC HỆ QUẢN TRỊ DỮ LIỆU}\label{chap:tochuc}
+
+Dữ liệu được chia vào bốn kho, mỗi kho phục vụ một kiểu truy vấn. SQLite là nguồn sự thật: ChromaDB, chỉ mục BM25
+và đồ thị đều dựng lại được hoàn toàn từ SQLite. Cả bốn kho nằm trong một thư mục \code{data/}, nên có thể
+embedding trên máy GPU rồi chép sang máy demo. Hình~\ref{fig:napdulieu} mô tả luồng nạp một PDF vào các kho.
+
+\begin{figure}[H]
+\centering
+\input{chapters/fig_napdulieu}
+\caption{Luồng nạp một PDF: ba lớp kiểm tra trùng trước khi ghi vào bốn kho dữ liệu}\label{fig:napdulieu}
+\end{figure}
+
+\section{Bốn kho dữ liệu}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.12\linewidth}P{0.24\linewidth}LL@{}}
+\toprule
+\textbf{Kho} & \textbf{Công nghệ} & \textbf{Nội dung} & \textbf{Phục vụ truy vấn}\\
+\midrule
+Metadata & SQLite (chế độ WAL), \code{scholarlens.sqlite} & Bảng \code{papers}, \code{chunks}, trạng thái pipeline & Kiểm tra trùng, lọc, chi tiết bài\\
+Vector & ChromaDB 1.5 (HNSW~\cite{hnsw}, cosine), \code{chroma/} & Collection \code{chunks} (vector đoạn) và \code{papers} (vector tiêu đề + tóm tắt) & Tìm kiếm ngữ nghĩa, láng giềng tương đồng\\
+Từ vựng & BM25 Okapi~\cite{bm25} (rank-bm25), trong RAM & Token của mọi đoạn đã embedding & Khớp thuật ngữ chính xác\\
+Đồ thị & NetworkX~\cite{networkx} MultiDiGraph, \code{graph.json} & Nút paper, author, category, concept và 5 loại cạnh & Bài liên quan, quan hệ cho Graph RAG\\
+\bottomrule
+\end{tabularx}
+\caption{Bốn kho dữ liệu và vai trò}\label{tab:kho}
+\end{table}
+
+\section{Lược đồ SQLite}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.1\linewidth}LP{0.22\linewidth}@{}}
+\toprule
+\textbf{Bảng} & \textbf{Cột chính} & \textbf{Chỉ mục}\\
+\midrule
+\code{papers} & \code{paper\_id} (mã arXiv không có hậu tố phiên bản, hoặc \code{local:<sha12>}), \code{title}, \code{title\_norm}, \code{authors}, \code{abstract}, \code{categories}, \code{year}, \code{pdf\_path}, \code{file\_sha256}, \code{source}, \code{refs} (mã arXiv được trích dẫn), \code{keywords}, \code{status}, \code{n\_chunks} & \code{arxiv\_id}, \code{file\_sha256}, \code{title\_norm}, \code{status}\\
+\code{chunks} & \code{chunk\_id} = \code{<paper\_id>::<idx>}, \code{kind} (summary / body), \code{section}, \code{page}, \code{text}, \code{embedded} & \code{paper\_id}, \code{embedded}\\
+\bottomrule
+\end{tabularx}
+\caption{Lược đồ SQLite}\label{tab:sqlite}
+\end{table}
+
+Các cột dạng danh sách được lưu dưới dạng JSON. Mỗi bài đi qua các trạng thái
+\code{registered} $\to$ \code{embedded} $\to$ \code{graphed}. Nhờ vậy từng module chạy lại độc lập được: module
+embedding chỉ xử lý các đoạn có \code{embedded = 0}, còn bước dựng đồ thị chỉ lấy các bài đã embedding.
+
+\section{Vector store}
+
+Mỗi vector đoạn văn mang metadata \code{paper\_id}, \code{title}, \code{year}, \code{category}, \code{section},
+\code{page}, \code{kind}. Metadata này cho phép lọc ngay trong ChromaDB, ví dụ chỉ tìm trong bài đang hỏi hoặc chỉ
+lấy bài từ năm 2024 trở đi. Collection \code{papers} (một vector cho mỗi bài) dùng để tính cạnh SIMILAR\_TO: mỗi
+bài nối tới tối đa 5 bài có cosine $\geq$ 0,75. Khi dựng toàn bộ đồ thị, độ tương đồng được tính chính xác bằng nhân
+ma trận theo khối; khi thêm từng bài, hệ thống dùng truy vấn HNSW xấp xỉ cho nhanh.
+
+\section{Đồ thị tri thức}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.18\linewidth}P{0.2\linewidth}L@{}}
+\toprule
+\textbf{Cạnh} & \textbf{Từ $\to$ Đến} & \textbf{Cách sinh}\\
+\midrule
+CITES & paper $\to$ paper & Mã arXiv trong phần References của PDF; khi thêm bài mới, cạnh được nối cả hai chiều (bài mới trích dẫn bài cũ và bài cũ trích dẫn bài mới)\\
+SIMILAR\_TO & paper $\to$ paper & Cosine giữa vector cấp bài, trọng số bằng cosine\\
+WRITTEN\_BY & paper $\to$ author & Tác giả lấy từ arXiv API, tên chuẩn hóa làm khóa\\
+MENTIONS & paper $\to$ concept & 6 khái niệm mỗi bài, trích bằng KeyBERT~\cite{keybert} rút gọn: ứng viên n-gram 1--3 từ, xếp theo cosine với vector bài, chọn đa dạng bằng MMR~\cite{mmr}\\
+IN\_CATEGORY & paper $\to$ category & Chuyên mục arXiv, ví dụ cs.IR, cs.CL\\
+\bottomrule
+\end{tabularx}
+\caption{Các loại cạnh trong đồ thị tri thức}\label{tab:canh}
+\end{table}
+
+\section{Kiểm tra trùng lặp}\label{sec:dedup}
+
+Việc kiểm tra đi từ rẻ đến đắt và dừng ngay khi phát hiện trùng:
+
+\begin{enumerate}[label=(\arabic*)]
+\item \textbf{SHA-256 của file:} bắt lại đúng file đã tải lên trước đó, không cần đọc PDF.
+\item \textbf{Mã arXiv:} đọc từ tem dọc bên lề trang 1, từ đường dẫn arxiv.org trên trang 1, hoặc từ tên file.
+\item \textbf{Tiêu đề chuẩn hóa} (bỏ dấu, chữ thường, chỉ giữ chữ và số) khớp tuyệt đối.
+\item \textbf{Tiêu đề gần trùng:} tỉ lệ ký tự giống nhau $\geq$ 0,92; hoặc đồng thời độ bao hàm từ
+  $|A\cap B|/\min(|A|,|B|) \geq 0{,}9$ và hệ số Jaccard $|A\cap B|/|A\cup B| \geq 0{,}8$, với tiêu đề ngắn hơn có ít
+  nhất 6 từ. Tiêu chí thứ hai bắt được trường hợp bỏ hoặc thêm vài từ, ví dụ ``(Extended Version)''.
+\item \textbf{Kiểm tra lại sau khi tra arXiv API} với mã và tiêu đề chuẩn. Bước này bắt được PDF không có tem arXiv
+  nhưng là bài đã có trong kho.
+\end{enumerate}
+
+Trên 492 bài, cơ chế này phát hiện 100\% bản trùng theo mã arXiv và 95\% tiêu đề bị biến đổi, không báo nhầm bài
+thật nào (chi tiết ở Mục~\ref{sec:danhgia}).

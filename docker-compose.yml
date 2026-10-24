@@ -1,0 +1,19 @@
+# Web app ScholarLens trên máy demo. Dữ liệu (đã embedding trên máy GPU) mount từ ./data.
+#   docker compose up -d --build
+#   docker compose logs -f app
+services:
+  app:
+    build:
+      context: .
+      args:
+        EMBED_MODEL: ${SL_EMBED_MODEL:-intfloat/multilingual-e5-base}
+    image: scholarlens-app:latest
+    container_name: scholarlens-app
+    ports:
+      - "7860:7860"
+    env_file:
+      - path: .env          # SL_LLM_* trỏ tới URL trycloudflare của máy GPU (có thể đổi sau trên giao diện)
+        required: false
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

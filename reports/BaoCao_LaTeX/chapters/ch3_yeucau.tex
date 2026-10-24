@@ -1,0 +1,67 @@
+\chapter{YÊU CẦU HỆ THỐNG}\label{chap:yeucau}
+
+Yêu cầu được chia thành ba nhóm: chức năng (hệ thống phải làm gì), phi chức năng (làm tốt đến mức nào) và môi
+trường sử dụng (cần gì để vận hành). Mỗi yêu cầu chức năng ứng với một module có thể chạy độc lập.
+
+\section{Yêu cầu chức năng}
+
+\begin{enumerate}[label=\textbf{FR\arabic*.}, leftmargin=3.2em]
+\item \textbf{Thu thập:} lấy metadata và PDF từ arXiv API theo keyword, chuyên mục, khoảng ngày hoặc mã bài;
+  không tải trùng.
+\item \textbf{Nạp tài liệu:} nhận PDF, trích tiêu đề, tác giả, tóm tắt, mã arXiv và danh sách tài liệu tham khảo
+  có mã arXiv.
+\item \textbf{Kiểm tra trùng:} theo mã băm SHA-256 của file, mã arXiv, tiêu đề chuẩn hóa và tiêu đề gần giống.
+\item \textbf{Embedding và lưu trữ:} chia đoạn, sinh vector, lưu vào vector DB và cập nhật đồ thị một cách tự
+  động sau khi nạp.
+\item \textbf{Tìm kiếm:} tìm kiếm lai BM25 + vector, gộp bằng Reciprocal Rank Fusion, lọc theo năm.
+\item \textbf{Graph RAG:} mở rộng kết quả qua đồ thị (tác giả, chuyên mục, khái niệm, trích dẫn, tương đồng).
+\item \textbf{Chatbot:} hai chế độ Chat và Research, trả lời có trích dẫn, ghi nhớ hội thoại, hỏi theo bài vừa
+  thêm.
+\item \textbf{Giao diện:} chat streaming, lịch sử hội thoại, kéo-thả PDF, danh sách nguồn và trực quan hóa đồ thị
+  của từng câu trả lời.
+\end{enumerate}
+
+\section{Yêu cầu phi chức năng}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.18\linewidth}LL@{}}
+\toprule
+\textbf{Nhóm} & \textbf{Yêu cầu} & \textbf{Cách đáp ứng}\\
+\midrule
+Hiệu năng & Tìm kiếm dưới 1 giây với kho 10.000 bài; nạp một PDF dưới 30 giây trên CPU & Chỉ mục HNSW (ChromaDB), BM25 trong bộ nhớ, embedding theo lô\\
+Khả năng mở rộng & Embedding hàng chục nghìn bài & Chạy theo lô trên GPU Kaggle, xuất thư mục dữ liệu để dùng lại\\
+Tính module & Mỗi module chạy độc lập & Gói Python \code{scholarlens.*}, mỗi module có lệnh riêng\\
+Tính đúng đắn & Không bịa nguồn & Prompt buộc trích dẫn [n] từ ngữ cảnh; chế độ không LLM trả về trích đoạn\\
+Tính linh hoạt & Đổi LLM hoặc model embedding & Cấu hình qua biến môi trường hoặc giao diện: API tương thích OpenAI (vLLM, Gemini, Ollama), Anthropic, hoặc không LLM\\
+Tính khả dụng & Vẫn dùng được khi mất kết nối LLM & Tự quay về chế độ trích đoạn; tìm kiếm và đồ thị chạy cục bộ\\
+Tính bảo trì & Dữ liệu tái lập được & Vector store và đồ thị dựng lại được toàn bộ từ SQLite\\
+\bottomrule
+\end{tabularx}
+\caption{Yêu cầu phi chức năng}\label{tab:nfr}
+\end{table}
+
+\section{Yêu cầu môi trường sử dụng}
+
+Máy demo không cần GPU. Mọi tính toán nặng nằm trên máy GPU, và máy GPU có thể là một phiên Kaggle miễn phí.
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}P{0.18\linewidth}LL@{}}
+\toprule
+\textbf{Thành phần} & \textbf{Yêu cầu tối thiểu} & \textbf{Cấu hình đã dùng khi phát triển}\\
+\midrule
+Máy GPU (LLM + embedding hàng loạt) & GPU NVIDIA có compute capability $\geq$ 7.5; tổng VRAM $\geq$ 16 GB cho model 7B nén AWQ ($\geq$ 8 GB cho model 3B); Linux, Python 3.10+, vLLM, có Internet & Kaggle Notebook, 2 $\times$ Tesla T4 (2 $\times$ 16 GB), Python 3.13, vLLM 0.32.0\\
+Máy demo (web app) & CPU 4 nhân, RAM 8 GB, khoảng 3 GB ổ đĩa; Docker, hoặc Python 3.10+ & Windows 10, Python 3.13, chỉ CPU\\
+Trình duyệt & Chrome, Edge hoặc Firefox bản hiện hành & Microsoft Edge\\
+Mạng & Máy demo gọi ra ngoài qua HTTPS (tới tunnel trycloudflare, và arXiv API khi thêm PDF); không cần mở cổng vào & Mạng gia đình thông thường\\
+Tài khoản & Kaggle đã xác minh để bật GPU và Internet; Hugging Face token nếu dùng model có giới hạn truy cập & Kaggle; Qwen2.5 không cần token\\
+\bottomrule
+\end{tabularx}
+\caption{Yêu cầu môi trường sử dụng}\label{tab:moitruong}
+\end{table}
+
+Hai ràng buộc phải giữ đồng nhất giữa hai máy: cùng model embedding (\code{intfloat/multilingual-e5-base}) và cùng
+phiên bản \code{chromadb} (1.5.9), để dữ liệu tạo trên máy GPU đọc được trên máy demo. Khi không có máy GPU, hệ
+thống vẫn chạy ở chế độ trích đoạn: tìm kiếm, đồ thị và thêm PDF hoạt động bình thường, chỉ thiếu câu trả lời do
+LLM viết.

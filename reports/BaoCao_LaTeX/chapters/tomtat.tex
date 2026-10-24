@@ -1,0 +1,20 @@
+\chuongkhongso{TÓM TẮT}
+
+Báo cáo trình bày \textbf{ScholarLens}, hệ thống truy xuất thông tin và hỏi đáp cho bài báo khoa học trên arXiv.
+Người dùng tìm bài bằng câu hỏi tự nhiên (tiếng Việt hoặc tiếng Anh), thêm tài liệu bằng cách kéo-thả file PDF,
+và trò chuyện với chatbot. Chatbot trả lời có trích dẫn tới đúng bài báo, kèm các bài liên quan tìm được trên đồ thị
+tri thức.
+
+Hệ thống gồm bảy module chạy độc lập: thu thập dữ liệu từ arXiv API; nạp PDF với ba lớp kiểm tra trùng (băm
+SHA-256, mã arXiv, tiêu đề gần giống); embedding đa ngôn ngữ bằng \code{multilingual-e5-base} (tự dùng GPU); đồ thị
+tri thức nối bài báo với tác giả, khái niệm, chuyên mục, quan hệ trích dẫn và tương đồng nội dung; chatbot hai chế
+độ dựa trên Graph RAG; máy chủ LLM mã nguồn mở Qwen2.5 chạy bằng vLLM trên GPU Kaggle, công khai qua Cloudflare
+Tunnel; và web app FastAPI có giao diện chat tối giản. Dữ liệu được tổ chức thành bốn kho: SQLite (metadata),
+ChromaDB (vector, chỉ mục HNSW), chỉ mục BM25 và đồ thị NetworkX. Tìm kiếm kết hợp BM25 và vector bằng Reciprocal
+Rank Fusion.
+
+Trên kho thử nghiệm 492 bài, tìm bài theo tiêu đề bằng BM25 đạt Recall@1 = 0,957; cơ chế kiểm tra trùng phát hiện
+95\% tiêu đề bị biến đổi mà không báo nhầm bài thật nào; trong năm bài liên quan mà đồ thị gợi ý, 37\% cùng chuyên
+mục với bài gốc, gấp 2,7 lần so với chọn ngẫu nhiên.
+
+\textbf{Từ khóa:} Information Retrieval, Hybrid Search, Graph RAG, Knowledge Graph, Chatbot, vLLM, arXiv.

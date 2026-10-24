@@ -1,0 +1,38 @@
+\chapter{PHÁT BIỂU BÀI TOÁN}\label{chap:baitoan}
+
+\section{Bài toán}
+
+Cho một kho bài báo khoa học tăng dần theo thời gian, cần xây dựng hệ thống cho phép: (i) tìm đúng bài cần đọc
+bằng câu hỏi tự nhiên; (ii) hỏi đáp về nội dung một bài cụ thể; (iii) khám phá các bài liên quan. Mọi câu trả lời
+phải có dẫn nguồn kiểm chứng được.
+
+arXiv nhận hơn 20.000 bài mới mỗi tháng. Tìm kiếm theo từ khóa đơn thuần bỏ sót các bài dùng thuật ngữ khác; còn
+chatbot dùng LLM thuần túy dễ bịa nội dung và bịa trích dẫn. Vì vậy hệ thống cần kết hợp ba thành phần: truy xuất
+theo ngữ nghĩa, quan hệ giữa các bài (tác giả, chủ đề, trích dẫn), và LLM để tổng hợp câu trả lời từ đúng các
+đoạn văn tìm được (RAG~\cite{rag}).
+
+\section{Tác nhân và tình huống sử dụng}
+
+\begin{table}[H]
+\centering\small\setstretch{1.15}
+\begin{tabularx}{\linewidth}{@{}lP{0.17\linewidth}LL@{}}
+\toprule
+\textbf{Mã} & \textbf{Tác nhân} & \textbf{Tình huống} & \textbf{Kết quả mong đợi}\\
+\midrule
+UC1 & Học viên, nhà nghiên cứu & Tìm bài báo bằng câu hỏi tự nhiên, ví dụ ``retrieval augmented generation cho văn bản pháp luật'' & Danh sách bài xếp hạng, có tiêu đề, tác giả, năm, link arXiv\\
+UC2 & Nhà nghiên cứu & Tải lên một file PDF bài báo & Hệ thống báo ``đã có'' hoặc tự xử lý và thêm vào kho\\
+UC3 & Nhà nghiên cứu & Tải lên hàng loạt PDF & Mỗi file có trạng thái riêng: thêm mới, trùng hoặc lỗi\\
+UC4 & Nhà nghiên cứu & Hỏi về một bài cụ thể (phương pháp, dữ liệu, kết quả) & Câu trả lời dựa trên các đoạn của chính bài đó, có trích dẫn [n]\\
+UC5 & Nhà nghiên cứu & Hỏi ``các bài liên quan đến bài này'' & Danh sách bài láng giềng trên đồ thị kèm lý do liên quan\\
+UC6 & Người dùng & Trò chuyện thông thường, hỏi khái niệm chung & Chế độ Chat trả lời nhanh, không truy xuất\\
+UC7 & Quản trị viên & Thu thập dữ liệu theo keyword hoặc chuyên mục, embedding trên GPU & Kho dữ liệu được mở rộng\\
+\bottomrule
+\end{tabularx}
+\caption{Tác nhân và tình huống sử dụng}\label{tab:usecase}
+\end{table}
+
+\section{Phạm vi}
+
+Hệ thống tập trung vào bài báo khoa học trên arXiv, viết bằng tiếng Anh, ở dạng PDF hoặc metadata. Câu hỏi có thể
+bằng tiếng Việt hoặc tiếng Anh. Hệ thống không xử lý ảnh, bảng hay công thức trong PDF như dữ liệu có cấu trúc;
+chúng chỉ được đọc như văn bản thường.

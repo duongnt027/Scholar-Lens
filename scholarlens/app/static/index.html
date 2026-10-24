@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScholarLens</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <!-- ===== Thanh bên: lịch sử + cấu hình LLM ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <div class="brand">ScholarLens</div>
+      <button class="icon-btn" id="collapseSidebar" title="Thu gọn thanh bên">
+        <svg viewBox="0 0 24 24" width="18" height="18"><rect x="3.5" y="4.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 4.5v15M15.5 10l-2 2 2 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <button class="new-chat" id="newChat">+ Cuộc trò chuyện mới</button>
+    <div class="side-label">Lịch sử</div>
+    <ul class="conv-list" id="convList"></ul>
+
+    <details class="llm" id="llmBox">
+      <summary title="Cấu hình máy chủ LLM"><i class="dot" id="llmDot"></i><span id="llmLabel">LLM: chưa kết nối</span></summary>
+      <form class="llm-form" id="llmForm" autocomplete="off">
+        <input name="base_url" placeholder="https://xxxx.trycloudflare.com/v1" spellcheck="false">
+        <input name="api_key" type="password" placeholder="API key">
+        <button type="submit" id="llmSave">Kết nối</button>
+        <div class="llm-msg" id="llmMsg"></div>
+      </form>
+    </details>
+  </aside>
+
+  <!-- ===== Khung chat ===== -->
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn" id="openSidebar" title="Mở thanh bên">
+        <svg viewBox="0 0 24 24" width="18" height="18"><rect x="3.5" y="4.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 4.5v15M13.5 10l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h1 id="convTitle">Cuộc trò chuyện mới</h1>
+    </header>
+
+    <div class="scroll" id="scroll">
+      <div class="thread" id="thread">
+        <div class="empty" id="empty">Hỏi về các bài báo trong kho, hoặc đính kèm PDF để thêm bài mới.</div>
+      </div>
+    </div>
+
+    <form class="composer" id="composer">
+      <div class="focus" id="focus" hidden></div>
+      <div class="input-row">
+        <label class="icon-btn" title="Đính kèm PDF">
+          <input type="file" id="fileInput" accept="application/pdf" multiple hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M16.5 6.5l-7.8 7.8a2 2 0 102.8 2.8l7.8-7.8a4 4 0 10-5.7-5.7l-7.8 7.8a6 6 0 108.5 8.5l6.4-6.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </label>
+        <textarea id="input" rows="1" placeholder="Nhập câu hỏi… (Enter để gửi)"></textarea>
+        <button class="send" id="sendBtn" type="submit" title="Gửi">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </form>
+  </main>
+</div>
+<div class="drop-overlay" id="dropOverlay">Thả file PDF để thêm vào kho</div>
+
+<!-- Xem đồ thị toàn màn hình -->
+<div class="graph-full" id="graphFull" hidden>
+  <div class="gf-head">
+    <strong>Đồ thị tri thức</strong>
+    <span class="graph-legend" id="gfLegend"></span>
+    <span class="gf-actions">
+      <button type="button" id="gfFit">Vừa khung</button>
+      <button type="button" class="icon-btn" id="gfClose" title="Đóng (Esc)">✕</button>
+    </span>
+  </div>
+  <div class="gf-box" id="gfBox"></div>
+  <div class="gf-info" id="gfInfo">Bấm vào một nút để xem chi tiết. Lăn chuột để phóng to, kéo để di chuyển.</div>
+</div>
+
+<script src="/static/vendor/marked.min.js"></script>
+<script src="/static/vendor/purify.min.js"></script>
+<script src="/static/vendor/vis-network.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
